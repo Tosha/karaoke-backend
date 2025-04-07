@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
+import java.io.File;
 
 @RestController
 @RequestMapping("/audio")
@@ -24,10 +24,11 @@ public class AudioController {
     @PostMapping("/separate")
     public ResponseEntity<String> separateAudio(@RequestParam("file") MultipartFile file) {
         try {
-            String outputPath = spleeterService.processAudio(file);
-            return ResponseEntity.ok("Processed file saved at: " + outputPath);
-        } catch (IOException | InterruptedException e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error processing audio: " + e.getMessage());
+            String resultPath = spleeterService.processAudio(file);
+            return ResponseEntity.ok("Audio separated successfully. Files saved to: " + resultPath);
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body("Error separating audio: " + e.getMessage());
         }
     }
 }
