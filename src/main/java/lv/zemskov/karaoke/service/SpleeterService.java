@@ -1,57 +1,82 @@
 package lv.zemskov.karaoke.service;
 
-import org.apache.commons.io.FilenameUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.*;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.UUID;
 
 @Service
 public class SpleeterService {
+    private static final Logger logger = LoggerFactory.getLogger(SpleeterService.class);
 
-    public String processAudio(MultipartFile multipartFile) throws IOException, InterruptedException {
-        // Get project root
-        String projectRoot = System.getProperty("user.dir");
+    @Value("${spleeter.input-dir:/app/input}")
+    private String inputDir;
 
-        // Define input and output directories
-        Path inputDir = Paths.get(projectRoot, "target", "input");
-        Path outputDir = Paths.get(projectRoot, "target", "result");
+    @Value("${spleeter.output-dir:/app/output}")
+    private String outputDir;
 
-        // Ensure directories exist
-        Files.createDirectories(inputDir);
-        Files.createDirectories(outputDir);
-
-        // Save uploaded file to input dir
-        String originalFileName = multipartFile.getOriginalFilename();
-        File inputFile = new File(inputDir.toFile(), originalFileName);
-        multipartFile.transferTo(inputFile);
-
-        // Build Docker command
-        String dockerCommand = String.format(
-                "docker run --rm " +
-                        "-v \"%s:/input\" " +
-                        "-v \"%s:/output\" " +
-                        "researchdeezer/spleeter separate -p spleeter:2stems -o /output -i /input/%s",
-                inputDir.toAbsolutePath(),
-                outputDir.toAbsolutePath(),
-                originalFileName
-        );
-
-        // Execute Docker command
-        ProcessBuilder builder = new ProcessBuilder();
-        builder.command("cmd", "/c", dockerCommand); // If on Windows, use ["cmd", "/c", dockerCommand]
-        builder.inheritIO();
-        Process process = builder.start();
-        int exitCode = process.waitFor();
-
-        if (exitCode != 0) {
-            throw new RuntimeException("Spleeter Docker process failed with exit code " + exitCode);
+    public SeparationResult processAudio(MultipartFile multipartFile) throws IOException, InterruptedException {
+        // Validate input file
+        if (multipartFile.isEmpty()) {
+            throw new IllegalArgumentException("Uploaded file is empty");
         }
 
-        // Return result path (relative)
-        return Paths.get("target", "result", originalFileName.replace(".mp3", "")).toString();
+        String originalFilename = multipartFile.getOriginalFilename();
+        if (originalFilename == null || !originalFilename.toLowerCase().endsWith(".mp3")) {
+            throw new IllegalArgumentException("Only MP3 files are supported");
+        }
+
+        // Generate unique filename
+        String uniqueId = UUID.randomUUID().toString();
+        String sanitizedFilename = uniqueId + ".mp3";
+        Path inputPath = Paths.get(inputDir, sanitizedFilename);
+
+        // Ensure directories exist
+        Files.createDirectories(Paths.get(inputDir));
+        Files.createDirectories(Paths.get(outputDir));
+
+        // Save uploaded file
+        multipartFile.transferTo(inputPath);
+        logger.info("Saved input file to: {}", inputPath);
+
+        // Prepare output directory
+        String outputSubdir = uniqueId;
+        Path outputPath = Paths.get(outputDir, outputSubdir);
+        Files.createDirectories(outputPath);
+
+        // Execute Spleeter
+        Process process = new ProcessBuilder()
+                .command("spleeter", "separate",
+                        "-p", "spleeter:2stems",
+                        "-o", outputDir,
+                        inputPath.toString())
+                .inheritIO()
+                .start();
+
+        int exitCode = process.waitFor();
+        if (exitCode != 0) {
+            throw new RuntimeException("Spleeter process failed with exit code " + exitCode);
+        }
+
+        logger.info("Successfully processed audio. Results in: {}", outputPath);
+
+        return new SeparationResult(
+                outputSubdir,
+                outputPath.resolve("vocals.wav").toString(),
+                outputPath.resolve("accompaniment.wav").toString()
+        );
     }
+
+    public record SeparationResult(
+            String trackId,
+            String vocalsPath,
+            String accompanimentPath
+    ) {}
 }

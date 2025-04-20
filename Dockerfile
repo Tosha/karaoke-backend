@@ -1,29 +1,36 @@
-# -------- Stage 1: Python + Spleeter --------
-FROM python:3.10-slim as spleeter-builder
+# -------- Stage 1: Spleeter Base --------
+FROM researchdeezer/spleeter:latest as spleeter-base
 
-# Install ffmpeg and spleeter dependencies
+# -------- Stage 2: Java + Spleeter --------
+FROM eclipse-temurin:24-jdk
+
+# Install system dependencies (FFmpeg + Python)
 RUN apt-get update && \
-    apt-get install -y ffmpeg git build-essential && \
-    pip install spleeter && \
+    apt-get install -y --no-install-recommends \
+    ffmpeg \
+    python3 \
+    python3-pip && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# -------- Stage 2: Java App Base --------
-FROM eclipse-temurin:24-jdk
+# Copy Python environment from Spleeter base
+COPY --from=spleeter-base /usr/local/lib/python3.7/dist-packages/ /usr/local/lib/python3.7/dist-packages/
+COPY --from=spleeter-base /usr/local/bin/spleeter /usr/local/bin/
 
-# Set working directory
+# Symlink Python3 to Python (required by Spleeter)
+RUN ln -s /usr/bin/python3 /usr/local/bin/python
+
+# Create working directories
+RUN mkdir -p /app/input /app/output
 WORKDIR /app
 
-# Copy Spleeter + ffmpeg from stage 1
-COPY --from=spleeter-builder /usr/local /usr/local
-COPY --from=spleeter-builder /usr/bin/ffmpeg /usr/bin/ffmpeg
-COPY --from=spleeter-builder /usr/bin/ffprobe /usr/bin/ffprobe
-
-# Copy the Spring Boot app JAR file
+# Copy Spring Boot application
 COPY target/karaoke-service-0.0.1-SNAPSHOT.jar app.jar
 
-# Expose the app port
-EXPOSE 8080
+# Set environment variables
+ENV INPUT_DIR=/app/input
+ENV OUTPUT_DIR=/app/output
 
-# Start the app
+# Expose port and run
+EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
