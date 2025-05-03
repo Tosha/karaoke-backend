@@ -1,36 +1,31 @@
-# -------- Stage 1: Spleeter Base --------
-FROM researchdeezer/spleeter:latest as spleeter-base
+FROM python:3.8-slim
 
-# -------- Stage 2: Java + Spleeter --------
-FROM eclipse-temurin:24-jdk
-
-# Install system dependencies (FFmpeg + Python)
+# 1. Install Java 21 (Temurin)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    ffmpeg \
-    python3 \
-    python3-pip && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    wget gnupg2 ca-certificates curl && \
+    mkdir -p /etc/apt/keyrings && \
+    curl -fsSL https://packages.adoptium.net/artifactory/api/gpg/key/public | tee /etc/apt/keyrings/adoptium.asc > /dev/null && \
+    echo "deb [signed-by=/etc/apt/keyrings/adoptium.asc] https://packages.adoptium.net/artifactory/deb $(. /etc/os-release && echo $VERSION_CODENAME) main" > /etc/apt/sources.list.d/adoptium.list && \
+    apt-get update && \
+    apt-get install -y temurin-21-jdk ffmpeg && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Copy Python environment from Spleeter base
-COPY --from=spleeter-base /usr/local/lib/python3.7/dist-packages/ /usr/local/lib/python3.7/dist-packages/
-COPY --from=spleeter-base /usr/local/bin/spleeter /usr/local/bin/
+# 2. Install Spleeter via pip
+RUN python -m venv /venv && \
+    . /venv/bin/activate && \
+    pip install --upgrade pip && \
+    pip install spleeter
 
-# Symlink Python3 to Python (required by Spleeter)
-RUN ln -s /usr/bin/python3 /usr/local/bin/python
+ENV PATH="/venv/bin:$PATH"
 
-# Create working directories
-RUN mkdir -p /app/input /app/output
+# 3. Verify installs
+RUN java -version && \
+    spleeter --version && \
+    ffmpeg -version
+
+# 4. App setup
 WORKDIR /app
-
-# Copy Spring Boot application
-COPY target/karaoke-service-0.0.1-SNAPSHOT.jar app.jar
-
-# Set environment variables
-ENV INPUT_DIR=/app/input
-ENV OUTPUT_DIR=/app/output
-
-# Expose port and run
+COPY target/karaoke-service-*.jar app.jar
 EXPOSE 8080
 ENTRYPOINT ["java", "-jar", "app.jar"]
