@@ -24,8 +24,9 @@ RUN java -version && \
     spleeter --version && \
     ffmpeg -version
 
-# 4. App setup
+# 4. Build app
 WORKDIR /app
-COPY target/karaoke-service-*.jar app.jar
+COPY . .
+
 EXPOSE 8080
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["./mvnw", "spring-boot:run"]

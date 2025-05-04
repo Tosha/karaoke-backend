@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  karaoke-service:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./input:/input
+      - ./output:/output
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://karaoke-db:5432/karaoke
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+    depends_on:
+      - karaoke-db
+
+  karaoke-db:
+    image: postgres:17-alpine
+    environment:
+      - POSTGRES_DB=karaoke
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+    volumes:
+      - karaoke-db-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+volumes:
+  karaoke-db-data:
