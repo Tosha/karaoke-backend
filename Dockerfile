@@ -26,7 +26,9 @@ RUN java -version && \
 
 # 4. Build app
 WORKDIR /app
-COPY . .
+ADD src ./src
+ADD .mvn ./.mvn
+COPY ["pom.xml", "mvnw", "./"]
 
 EXPOSE 8080
 ENTRYPOINT ["./mvnw", "spring-boot:run"]
