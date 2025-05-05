@@ -1,7 +1,9 @@
 package lv.zemskov.karaoke.controller;
 
+import lv.zemskov.karaoke.model.SeparationResult;
+import lv.zemskov.karaoke.repository.SeparationResultRepository;
 import lv.zemskov.karaoke.service.SpleeterService;
-import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -10,15 +12,21 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/audio")
 public class AudioController {
 
     private final SpleeterService spleeterService;
+    private final SeparationResultRepository separationResultRepository;
 
-    public AudioController(SpleeterService spleeterService) {
+    public AudioController(SpleeterService spleeterService, SeparationResultRepository separationResultRepository) {
         this.spleeterService = spleeterService;
+        this.separationResultRepository = separationResultRepository;
     }
 
     @PostMapping(value = "/separate", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -45,24 +53,31 @@ public class AudioController {
 
     @GetMapping("/download/{trackId}/{type}")
     public ResponseEntity<Resource> downloadTrack(
-            @PathVariable String trackId,
+            @PathVariable UUID trackId,
             @PathVariable String type) throws IOException {
 
-        if (!"vocals".equals(type) && !"accompaniment".equals(type)) {
+        SeparationResult result = separationResultRepository.findByTrackId(trackId);
+
+        String filePath;
+        String filename;
+
+        if ("vocals".equals(type)) {
+            filePath = result.getVocalsPath();
+            filename = "vocals.wav";
+        } else if ("accompaniment".equals(type)) {
+            filePath = result.getAccompanimentPath();
+            filename = "accompaniment.wav";
+        } else {
             return ResponseEntity.badRequest().build();
         }
 
-        String filePath = String.format("/tmp/output/%s/%s.wav", trackId, type);
-        Resource resource = new FileSystemResource(filePath);
-
-        if (!resource.exists()) {
-            return ResponseEntity.notFound().build();
-        }
+        Path path = Paths.get(filePath);
+        Resource resource = new InputStreamResource(Files.newInputStream(path));
 
         return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"%s.wav\"".formatted(type))
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .contentType(MediaType.parseMediaType("audio/wav"))
+                .contentLength(Files.size(path))
                 .body(resource);
     }
 }

@@ -10,43 +10,61 @@ public class SeparationResult {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Lob
-    @Column(name = "vocals_content", columnDefinition = "BYTEA")
-    private byte[] vocalsContent;
-
-    @Lob
-    @Column(name = "accompaniment_content", columnDefinition = "BYTEA")
-    private byte[] accompanimentContent;
-
-    @Column(name = "processing_time_seconds")
-    private Double processingTimeSeconds;
-
-    @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt = LocalDateTime.now();
+    private String vocalsPath;      // Filesystem path
+    private String accompanimentPath; // Filesystem path
+    private double processingTimeSeconds;
 
     @OneToOne
-    @JoinColumn(name = "track_id", referencedColumnName = "id")
+    @JoinColumn(name = "track_id")
     private Track track;
 
-    // Constructors
-    public SeparationResult() {}
-
-    public SeparationResult(byte[] vocalsContent, byte[] accompanimentContent, Track track) {
-        this.vocalsContent = vocalsContent;
-        this.accompanimentContent = accompanimentContent;
+    public SeparationResult(String vocalsPath, String accompanimentPath, double processingTimeSeconds, Track track) {
+        this.vocalsPath = vocalsPath;
+        this.accompanimentPath = accompanimentPath;
+        this.processingTimeSeconds = processingTimeSeconds;
         this.track = track;
     }
 
-    // Getters and Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public byte[] getVocalsContent() { return vocalsContent; }
-    public void setVocalsContent(byte[] vocalsContent) { this.vocalsContent = vocalsContent; }
-    public byte[] getAccompanimentContent() { return accompanimentContent; }
-    public void setAccompanimentContent(byte[] accompanimentContent) { this.accompanimentContent = accompanimentContent; }
-    public Double getProcessingTimeSeconds() { return processingTimeSeconds; }
-    public void setProcessingTimeSeconds(Double processingTimeSeconds) { this.processingTimeSeconds = processingTimeSeconds; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public Track getTrack() { return track; }
-    public void setTrack(Track track) { this.track = track; }
+    public SeparationResult() {
+    }
+
+    public Long getId() {
+        return id;
+    }
+
+    public void setId(Long id) {
+        this.id = id;
+    }
+
+    public String getVocalsPath() {
+        return vocalsPath;
+    }
+
+    public void setVocalsPath(String vocalsPath) {
+        this.vocalsPath = vocalsPath;
+    }
+
+    public String getAccompanimentPath() {
+        return accompanimentPath;
+    }
+
+    public void setAccompanimentPath(String accompanimentPath) {
+        this.accompanimentPath = accompanimentPath;
+    }
+
+    public double getProcessingTimeSeconds() {
+        return processingTimeSeconds;
+    }
+
+    public void setProcessingTimeSeconds(double processingTimeSeconds) {
+        this.processingTimeSeconds = processingTimeSeconds;
+    }
+
+    public Track getTrack() {
+        return track;
+    }
+
+    public void setTrack(Track track) {
+        this.track = track;
+    }
 }
