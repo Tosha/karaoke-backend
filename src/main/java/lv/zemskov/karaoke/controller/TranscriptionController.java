@@ -11,8 +11,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
 
-import static lv.zemskov.karaoke.service.transcription.job.TranscriptionJobState.ERROR;
-
 @Slf4j
 @RestController
 @RequestMapping("/api/transcription")
@@ -24,20 +22,6 @@ public class TranscriptionController {
     public TranscriptionController(WhisperService transcriptionService) {
         this.transcriptionService = transcriptionService;
     }
-
-//    @PostMapping("/{trackId}")
-//    public ResponseEntity<TranscriptionResult> transcribeTrack(
-//            @PathVariable UUID trackId) {
-//        try {
-//            log.info("Transcription requested for track id: {}", trackId);
-//            TranscriptionResult result = transcriptionService.transcribeVocals(trackId);
-//            log.info("Track transcription completed for track: {}", trackId);
-//            return ResponseEntity.ok(result);
-//        } catch (Exception e) {
-//            log.error("Error during transcription of track: {}", trackId);
-//            return ResponseEntity.internalServerError().build();
-//        }
-//    }
 
     @PostMapping("/{trackId}")
     public ResponseEntity<String> transcribeTrack(@PathVariable UUID trackId) {
@@ -54,9 +38,9 @@ public class TranscriptionController {
             return ResponseEntity.notFound().build();
         }
 
-        switch (status.getState()) {
+        switch (status.state()) {
             case DONE -> {
-                return ResponseEntity.ok(status.getResult());
+                return ResponseEntity.ok(status.result());
             }
             case ERROR -> {
                 return ResponseEntity.status(500).build();
