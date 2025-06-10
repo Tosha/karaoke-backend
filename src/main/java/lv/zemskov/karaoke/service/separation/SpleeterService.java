@@ -1,4 +1,4 @@
-package lv.zemskov.karaoke.service;
+package lv.zemskov.karaoke.service.separation;
 
 import jakarta.transaction.Transactional;
 import lv.zemskov.karaoke.model.SeparationResult;

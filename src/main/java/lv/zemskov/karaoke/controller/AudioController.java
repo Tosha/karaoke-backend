@@ -3,7 +3,7 @@ package lv.zemskov.karaoke.controller;
 import lombok.extern.slf4j.Slf4j;
 import lv.zemskov.karaoke.model.SeparationResult;
 import lv.zemskov.karaoke.repository.SeparationResultRepository;
-import lv.zemskov.karaoke.service.SpleeterService;
+import lv.zemskov.karaoke.service.separation.SpleeterService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.InputStreamResource;

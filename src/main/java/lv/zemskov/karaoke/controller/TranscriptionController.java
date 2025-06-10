@@ -2,13 +2,16 @@ package lv.zemskov.karaoke.controller;
 
 import lombok.extern.slf4j.Slf4j;
 import lv.zemskov.karaoke.model.TranscriptionResult;
-import lv.zemskov.karaoke.service.WhisperService;
+import lv.zemskov.karaoke.service.transcription.WhisperService;
+import lv.zemskov.karaoke.service.transcription.job.TranscriptionJobStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
+
+import static lv.zemskov.karaoke.service.transcription.job.TranscriptionJobState.ERROR;
 
 @Slf4j
 @RestController
@@ -22,17 +25,45 @@ public class TranscriptionController {
         this.transcriptionService = transcriptionService;
     }
 
+//    @PostMapping("/{trackId}")
+//    public ResponseEntity<TranscriptionResult> transcribeTrack(
+//            @PathVariable UUID trackId) {
+//        try {
+//            log.info("Transcription requested for track id: {}", trackId);
+//            TranscriptionResult result = transcriptionService.transcribeVocals(trackId);
+//            log.info("Track transcription completed for track: {}", trackId);
+//            return ResponseEntity.ok(result);
+//        } catch (Exception e) {
+//            log.error("Error during transcription of track: {}", trackId);
+//            return ResponseEntity.internalServerError().build();
+//        }
+//    }
+
     @PostMapping("/{trackId}")
-    public ResponseEntity<TranscriptionResult> transcribeTrack(
-            @PathVariable UUID trackId) {
-        try {
-            log.info("Transcription requested for track id: {}", trackId);
-            TranscriptionResult result = transcriptionService.transcribeVocals(trackId);
-            log.info("Track transcription completed for track: {}", trackId);
-            return ResponseEntity.ok(result);
-        } catch (Exception e) {
-            log.error("Error during transcription of track: {}", trackId);
-            return ResponseEntity.internalServerError().build();
+    public ResponseEntity<String> transcribeTrack(@PathVariable UUID trackId) {
+        UUID jobId = UUID.randomUUID();
+        log.info("Received async transcription request for track {}", trackId);
+        transcriptionService.transcribeVocalsAsync(trackId, jobId);
+        return ResponseEntity.accepted().body(jobId.toString()); // 202 Accepted
+    }
+
+    @GetMapping("/status/{jobId}")
+    public ResponseEntity<TranscriptionResult> getJobStatus(@PathVariable UUID jobId) {
+        TranscriptionJobStatus status = transcriptionService.getJobStatus(jobId);
+        if (status == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        switch (status.getState()) {
+            case DONE -> {
+                return ResponseEntity.ok(status.getResult());
+            }
+            case ERROR -> {
+                return ResponseEntity.status(500).build();
+            }
+            default -> {
+                return ResponseEntity.status(202).build(); // Still processing
+            }
         }
     }
 
