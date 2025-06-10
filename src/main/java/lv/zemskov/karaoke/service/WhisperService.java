@@ -48,11 +48,16 @@ public class WhisperService {
         ProcessBuilder pb = new ProcessBuilder(
                 "whisper",
                 vocalsPath.toString(),
-                "--model", "medium",
+                "--model", "tiny",
                 "--output_dir", "/tmp",
                 "--output_format", "json",
                 "--word_timestamps", "True",
-                "--language", "en"
+                "--language", "en",
+                "--beam_size", "1",
+                "--best_of", "1",
+                "--threads", "4",
+                "--compression_ratio_threshold", "2.4",
+                "--fp16", "False"
         ).redirectErrorStream(true);
 
         Process process = pb.start();
