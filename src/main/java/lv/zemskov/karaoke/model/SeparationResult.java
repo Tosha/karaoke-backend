@@ -1,7 +1,6 @@
 package lv.zemskov.karaoke.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "separation_result", schema = "karaoke_schema")
