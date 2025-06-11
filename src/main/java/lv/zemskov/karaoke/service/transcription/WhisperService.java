@@ -117,8 +117,8 @@ public class WhisperService {
         return transcriptionResultRepository.save(result);
     }
 
-    public TranscriptionResult findByTrackId(Long trackId) {
-        return transcriptionResultRepository.findById(trackId).orElseThrow();
+    public TranscriptionResult findByTrackId(UUID trackId) {
+        return transcriptionResultRepository.findByTrackId(trackId);
     }
 
     public TranscriptionJobStatus getJobStatus(UUID jobId) {

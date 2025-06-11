@@ -53,7 +53,7 @@ public class TranscriptionController {
 
     @GetMapping("/{trackId}")
     public ResponseEntity<TranscriptionResult> getTranscription(
-            @PathVariable Long trackId) {
+            @PathVariable UUID trackId) {
         return ResponseEntity.ok(transcriptionService.findByTrackId(trackId));
     }
 }
