@@ -2,61 +2,61 @@ package lv.zemskov.karaoke.service.transcription;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.transaction.Transactional;
 import lombok.extern.slf4j.Slf4j;
-import lv.zemskov.karaoke.model.LyricsSegment;
-import lv.zemskov.karaoke.model.SeparationResult;
-import lv.zemskov.karaoke.model.TranscriptionResult;
-import lv.zemskov.karaoke.repository.SeparationResultRepository;
-import lv.zemskov.karaoke.repository.TranscriptionResultRepository;
-import lv.zemskov.karaoke.service.transcription.job.TranscriptionJobStatus;
-import lv.zemskov.karaoke.service.transcription.job.TranscriptionJobStore;
+import lv.zemskov.karaoke.model.*;
+import lv.zemskov.karaoke.repository.*;
+import lv.zemskov.karaoke.service.job.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.UUID;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 @Slf4j
 @Service
 @Transactional
 public class WhisperService {
-
     private static final Logger log = LoggerFactory.getLogger(WhisperService.class);
 
     private final SeparationResultRepository separationResultRepository;
     private final TranscriptionResultRepository transcriptionResultRepository;
-    private final TranscriptionJobStore jobStore;
+    private final JobStore<UUID> jobStore;
+    private final ObjectMapper objectMapper;
 
     public WhisperService(
             SeparationResultRepository separationResultRepository,
             TranscriptionResultRepository transcriptionResultRepository,
-            TranscriptionJobStore jobStore
+            JobStore<UUID> jobStore,
+            ObjectMapper objectMapper
     ) {
         this.separationResultRepository = separationResultRepository;
         this.transcriptionResultRepository = transcriptionResultRepository;
         this.jobStore = jobStore;
+        this.objectMapper = objectMapper;
     }
 
     @Async
     public void transcribeVocalsAsync(UUID trackId, UUID jobId) {
         try {
-            jobStore.setInProgress(jobId);
+            jobStore.update(jobId, JobState.TRANSCRIBING, "Starting audio transcription");
+
             TranscriptionResult result = transcribeVocals(trackId);
-            jobStore.setDone(jobId, result);
+            transcriptionResultRepository.save(result);
+
+            jobStore.complete(jobId, Map.of(
+                    "transcriptionId", result.getId(),
+                    "message", "Transcription completed successfully"
+            ));
+
         } catch (Exception e) {
             log.error("Transcription failed for track {}: {}", trackId, e.getMessage());
-            jobStore.setError(jobId);
+            jobStore.fail(jobId, "Transcription error: " + e.getMessage());
         }
     }
 
@@ -64,41 +64,57 @@ public class WhisperService {
         SeparationResult separation = separationResultRepository.findByTrackId(trackId);
 
         Path vocalsPath = Paths.get(separation.getVocalsPath());
-        log.info("Path for vocals found: {}", vocalsPath);
+        log.info("Processing vocals file: {}", vocalsPath);
 
-        ProcessBuilder pb = new ProcessBuilder(
+        ProcessBuilder pb = createWhisperProcess(vocalsPath);
+        Process process = pb.start();
+
+        try {
+            String output = captureProcessOutput(process);
+            if (!process.waitFor(5, TimeUnit.MINUTES)) {
+                throw new TimeoutException("Transcription timed out");
+            }
+            if (process.exitValue() != 0) {
+                throw new IOException("Whisper failed: " + output);
+            }
+
+            return parseTranscriptionResult(vocalsPath, separation.getTrack());
+        } catch (TimeoutException e) {
+            throw new RuntimeException(e);
+        } finally {
+            process.destroyForcibly();
+        }
+    }
+
+    private ProcessBuilder createWhisperProcess(Path audioFile) {
+        return new ProcessBuilder(
                 "whisper",
-                vocalsPath.toString(),
+                audioFile.toString(),
                 "--model", "tiny",
                 "--output_dir", "/tmp",
                 "--output_format", "json",
                 "--word_timestamps", "True",
                 "--language", "en",
-                "--beam_size", "1",
-                "--best_of", "1",
-                "--threads", "4",
-                "--compression_ratio_threshold", "2.4",
-                "--fp16", "False"
+                "--threads", "4"
         ).redirectErrorStream(true);
+    }
 
-        Process process = pb.start();
-        String output = new BufferedReader(new InputStreamReader(process.getInputStream()))
-                .lines().collect(Collectors.joining("\n"));
-        log.info("Whisper CLI raw output:\n{}", output);
-
-        int exitCode = process.waitFor();
-        if (exitCode != 0) {
-            log.error("Whisper failed. Output:\n{}", output);
-            throw new RuntimeException("Whisper failed with code: " + exitCode + "\n" + output);
+    private String captureProcessOutput(Process process) throws IOException {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream()))) {
+            return reader.lines().collect(Collectors.joining("\n"));
         }
+    }
 
-        Path jsonOutput = Paths.get("/tmp", vocalsPath.getFileName() + ".json");
-        String jsonContent = Files.readString(jsonOutput);
-        JsonNode rootNode = new ObjectMapper().readTree(jsonContent);
+    private TranscriptionResult parseTranscriptionResult(Path audioFile, Track track)
+            throws IOException {
+
+        Path jsonPath = Paths.get("/tmp", audioFile.getFileName() + ".json");
+        JsonNode rootNode = objectMapper.readTree(jsonPath.toFile());
 
         TranscriptionResult result = new TranscriptionResult();
-        result.setTrack(separation.getTrack());
-        result.setRawWhisperOutput(jsonContent);
+        result.setTrack(track);
+        result.setRawWhisperOutput(objectMapper.writeValueAsString(rootNode));
         result.setLanguageCode(rootNode.path("language").asText());
         result.setConfidenceScore((float) rootNode.path("confidence").asDouble());
 
@@ -106,22 +122,19 @@ public class WhisperService {
         for (JsonNode segment : rootNode.path("segments")) {
             LyricsSegment ls = new LyricsSegment();
             ls.setText(segment.path("text").asText());
-            ls.setStartTimeMs((long) (segment.path("start").asDouble() * 1000));
-            ls.setEndTimeMs((long) (segment.path("end").asDouble() * 1000));
+            ls.setStartTimeMs((long)(segment.path("start").asDouble() * 1000));
+            ls.setEndTimeMs((long)(segment.path("end").asDouble() * 1000));
             ls.setConfidence((float) segment.path("confidence").asDouble());
             ls.setTranscription(result);
             segments.add(ls);
         }
-
         result.setSegments(segments);
-        return transcriptionResultRepository.save(result);
+
+        Files.deleteIfExists(jsonPath);
+        return result;
     }
 
     public TranscriptionResult findByTrackId(UUID trackId) {
         return transcriptionResultRepository.findByTrackId(trackId);
-    }
-
-    public TranscriptionJobStatus getJobStatus(UUID jobId) {
-        return jobStore.getStatus(jobId);
     }
 }

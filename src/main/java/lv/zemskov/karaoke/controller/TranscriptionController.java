@@ -3,7 +3,6 @@ package lv.zemskov.karaoke.controller;
 import lombok.extern.slf4j.Slf4j;
 import lv.zemskov.karaoke.model.TranscriptionResult;
 import lv.zemskov.karaoke.service.transcription.WhisperService;
-import lv.zemskov.karaoke.service.transcription.job.TranscriptionJobStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -29,26 +28,6 @@ public class TranscriptionController {
         log.info("Received async transcription request for track {}", trackId);
         transcriptionService.transcribeVocalsAsync(trackId, jobId);
         return ResponseEntity.accepted().body(jobId.toString()); // 202 Accepted
-    }
-
-    @GetMapping("/status/{jobId}")
-    public ResponseEntity<TranscriptionResult> getJobStatus(@PathVariable UUID jobId) {
-        TranscriptionJobStatus status = transcriptionService.getJobStatus(jobId);
-        if (status == null) {
-            return ResponseEntity.notFound().build();
-        }
-
-        switch (status.state()) {
-            case DONE -> {
-                return ResponseEntity.ok(status.result());
-            }
-            case ERROR -> {
-                return ResponseEntity.status(500).build();
-            }
-            default -> {
-                return ResponseEntity.status(202).build(); // Still processing
-            }
-        }
     }
 
     @GetMapping("/{trackId}")
