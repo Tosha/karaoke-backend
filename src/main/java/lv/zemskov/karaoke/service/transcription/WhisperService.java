@@ -106,7 +106,7 @@ public class WhisperService {
         }
     }
 
-    private TranscriptionResult parseTranscriptionResult(Path audioFile, Track track)
+    TranscriptionResult parseTranscriptionResult(Path audioFile, Track track)
             throws IOException {
 
         Path jsonPath = Paths.get("/tmp", audioFile.getFileName() + ".json");

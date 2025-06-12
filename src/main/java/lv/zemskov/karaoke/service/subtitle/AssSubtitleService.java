@@ -4,9 +4,7 @@ import lv.zemskov.karaoke.model.LyricsSegment;
 import lv.zemskov.karaoke.model.TranscriptionResult;
 import org.springframework.stereotype.Service;
 
-import java.awt.*;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 public class AssSubtitleService {
@@ -53,7 +51,7 @@ public class AssSubtitleService {
                 karaokeEffect(segment.getText(), startTime, endTime));
     }
 
-    private String formatTime(long milliseconds) {
+    String formatTime(long milliseconds) {
         long hours = milliseconds / 3600000;
         long minutes = (milliseconds % 3600000) / 60000;
         long seconds = (milliseconds % 60000) / 1000;
@@ -62,19 +60,19 @@ public class AssSubtitleService {
         return String.format("%d:%02d:%02d.%02d", hours, minutes, seconds, centiseconds);
     }
 
-    private String karaokeEffect(String text, String startTime, String endTime) {
+    String karaokeEffect(String text, String startTime, String endTime) {
         // Creates karaoke effect with syllable timing
         return String.format("{\\kf%d}%s",
                 calculateDurationMs(startTime, endTime) / 10, // \kf uses centiseconds
                 text);
     }
 
-    private long calculateDurationMs(String startTime, String endTime) {
+    long calculateDurationMs(String startTime, String endTime) {
         // Parse time strings and calculate duration
         return convertTimeToMs(endTime) - convertTimeToMs(startTime);
     }
 
-    private long convertTimeToMs(String time) {
+    long convertTimeToMs(String time) {
         String[] parts = time.split("[:.]");
         return Long.parseLong(parts[0]) * 3600000L + // hours
                 Long.parseLong(parts[1]) * 60000L +   // minutes

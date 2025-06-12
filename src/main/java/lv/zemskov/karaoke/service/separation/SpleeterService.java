@@ -30,11 +30,9 @@ public class SpleeterService {
     }
 
     public SeparationResult processAudio(MultipartFile file) throws IOException, InterruptedException {
-        // 1. Prepare directories
         Files.createDirectories(inputDirectory);
         Files.createDirectories(outputDirectory);
 
-        // 2. Create and save Track entity
         Track track = new Track();
         track.setOriginalFilename(file.getOriginalFilename());
         track.setProcessedAt(LocalDateTime.now());
@@ -43,14 +41,12 @@ public class SpleeterService {
         track = trackRepository.save(track);
 
         try {
-            // 3. Store original file
             String fileId = track.getId().toString();
             Path inputFile = inputDirectory.resolve(fileId + ".mp3");
             file.transferTo(inputFile);
             track.setOriginalFilePath(inputFile.toString());
             trackRepository.save(track);
 
-            // 4. Process with Spleeter
             Path outputDir = outputDirectory.resolve(fileId);
             Files.createDirectories(outputDir);
 
@@ -65,7 +61,6 @@ public class SpleeterService {
                 throw new RuntimeException("Spleeter processing failed");
             }
 
-            // 5. Create and save results
             Path vocalsFile = outputDir.resolve("vocals.wav");
             Path accompanimentFile = outputDir.resolve("accompaniment.wav");
 
@@ -76,7 +71,6 @@ public class SpleeterService {
             result.setTrack(track);
             separationResultRepository.save(result);
 
-            // 6. Update track status
             track.setStatus("COMPLETED");
             trackRepository.save(track);
 
